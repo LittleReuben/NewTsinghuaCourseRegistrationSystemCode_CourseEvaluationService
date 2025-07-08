@@ -21,6 +21,7 @@ import Utils.CourseEvaluationProcess.recordCourseEvaluationOperationLog
 import APIs.UserAuthService.VerifyTokenValidityMessage
 import APIs.UserAccountService.QuerySafeUserInfoByTokenMessage
 import Objects.UserAccountService.UserRole
+import cats.implicits._
 
 case object CourseEvaluationProcess {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -51,7 +52,7 @@ case object CourseEvaluationProcess {
       // Step 3: 构造数据库插入SQL语句
       sql <- IO {
         s"""
-  INSERT INTO ${schemaName}.system_log_entry (timestamp, user_id, action, details)
+  INSERT INTO ${schemaName}.system_log_table (timestamp, user_id, action, details)
   VALUES (?, ?, ?, ?)
   """.stripMargin
       }
@@ -72,6 +73,46 @@ case object CourseEvaluationProcess {
       _ <- writeDB(sql, params)
       _ <- IO(logger.info(s"[recordCourseEvaluationOperationLog] 日志插入操作完成"))
     } yield ()
+  }
+  
+  def validateStudentEligibilityForEvaluation(studentID: Int, courseID: Int)(using PlanContext): IO[Boolean] = {
+  // val logger = LoggerFactory.getLogger("validateStudentEligibilityForEvaluation")  // 同文后端处理: logger 统一
+  
+    for {
+      // Step 1.1: 检查学生是否曾成功选上指定课程，通过查询数据库
+      _ <- IO(logger.info(s"[validateStudentEligibilityForEvaluation] 开始检查学生 ${studentID} 是否选上课程 ${courseID}"))
+      sql <- IO {
+        s"""
+  SELECT COUNT(*) AS total
+  FROM ${schemaName}.course_evaluation_table
+  WHERE student_id = ? AND course_id = ?
+  """
+      }
+      _ <- IO(logger.debug(s"[validateStudentEligibilityForEvaluation] SQL 查询为：${sql}"))
+      params <- IO {
+        List(
+          SqlParameter("Int", studentID.toString),
+          SqlParameter("Int", courseID.toString)
+        )
+      }
+  
+      // 使用 readDBInt 检查记录是否存在
+      enrollmentCount <- readDBInt(sql, params)
+      isEligible = enrollmentCount > 0
+      _ <- IO(logger.info(s"[validateStudentEligibilityForEvaluation] 学生 ${studentID} 是否选上课程 ${courseID}：${isEligible}"))
+  
+      // Step 1.2: 如果学生未选上该课程，直接返回 false
+      _ <- if (!isEligible) {
+        IO(logger.info(s"[validateStudentEligibilityForEvaluation] 学生 ${studentID} 未选上课程 ${courseID}，返回结果为 false"))
+      } else IO.unit
+  
+      // Step 2.1: 记录操作日志
+      _ <- IO(logger.info(s"[validateStudentEligibilityForEvaluation] 准备记录验证学生评价资格的操作日志"))
+      details <- IO(s"Validation Result: ${isEligible}")
+      _ <- recordCourseEvaluationOperationLog(studentID, "EligibilityCheck", courseID, details)
+      _ <- IO(logger.info(s"[validateStudentEligibilityForEvaluation] 操作日志记录完成"))
+  
+    } yield isEligible
   }
   
   def validateStudentToken(studentToken: String)(using PlanContext): IO[Option[Int]] = {
@@ -129,49 +170,5 @@ case object CourseEvaluationProcess {
         }
       } yield result
     }
-  }
-  
-  def validateStudentEligibilityForEvaluation(studentID: Int, courseID: Int)(using PlanContext): IO[Boolean] = {
-  // val logger = LoggerFactory.getLogger("validateStudentEligibilityForEvaluation")  // 同文后端处理: logger 统一
-  
-    for {
-      // Step 1.1: 检查学生是否选上指定课程
-      _ <- IO(logger.info(s"[validateStudentEligibilityForEvaluation] 开始验证学生选课情况，studentID: ${studentID}, courseID: ${courseID}"))
-      sqlQuery <- IO {
-        s"""
-        SELECT COUNT(*)
-        FROM ${schemaName}.course_evaluation_table
-        WHERE student_id = ? AND course_id = ?
-        """.stripMargin
-      }
-      parameters <- IO {
-        List(
-          SqlParameter("Int", studentID.toString),
-          SqlParameter("Int", courseID.toString)
-        )
-      }
-      courseExists <- readDBInt(sqlQuery, parameters)
-      _ <- IO(logger.info(s"[validateStudentEligibilityForEvaluation] 课程查询结果: courseExists = ${courseExists}"))
-  
-      // Step 1.2: 验证课程是否被选上
-      isEligible <- if (courseExists == 0) {
-        IO(logger.info(s"[validateStudentEligibilityForEvaluation] 学生未选上课程，设置为不具备评价资格")) >>
-        IO(false)
-      } else {
-        IO(logger.info(s"[validateStudentEligibilityForEvaluation] 学生已选上课程，进行后续处理")) >>
-        IO(true)
-      }
-  
-      // Step 2: 记录操作日志
-      _ <- recordCourseEvaluationOperationLog(
-        studentID = studentID,
-        operation = "ValidateEvaluationEligibility",
-        courseID = courseID,
-        details = s"Eligibility check result: ${isEligible}"
-      )
-  
-      // Step 3: 返回验证结果
-      _ <- IO(logger.info(s"[validateStudentEligibilityForEvaluation] 最终验证结果: isEligible = ${isEligible}"))
-    } yield isEligible
   }
 }
