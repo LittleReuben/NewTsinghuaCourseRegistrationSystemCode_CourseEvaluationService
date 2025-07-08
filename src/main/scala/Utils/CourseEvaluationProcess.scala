@@ -121,57 +121,39 @@ case object CourseEvaluationProcess {
   def validateStudentToken(studentToken: String)(using PlanContext): IO[Option[Int]] = {
   // val logger = LoggerFactory.getLogger("validateStudentToken")  // 同文后端处理: logger 统一
   
-    if (studentToken == null || studentToken.isEmpty) {
-      logger.info(s"[validateStudentToken] 传入的 studentToken 为空或无效")
-      IO.pure(None)
-    } else {
-      for {
-        // Step 1: 验证 Token 有效性
-        _ <- IO(logger.info(s"[validateStudentToken] 验证 studentToken 的有效性: ${studentToken}"))
-        tokenValid <- VerifyTokenValidityMessage(studentToken).send
-        _ <- if (!tokenValid) IO(logger.info(s"[validateStudentToken] studentToken ${studentToken} 无效")) else IO.unit
+    logger.info(s"开始验证学生Token: ${studentToken}")
   
-        result <- if (!tokenValid) {
-          IO.pure(None)
-        } else {
-          for {
-            // Step 2: 解析 Token 获取学生信息
-            _ <- IO(logger.info(s"[validateStudentToken] studentToken ${studentToken} 验证通过，开始解析学生信息"))
-            safeUserInfoOpt <- QuerySafeUserInfoByTokenMessage(studentToken).send
-            _ <- if (safeUserInfoOpt.isEmpty) IO(logger.info(s"[validateStudentToken] 无法解析 studentToken ${studentToken} 为 SafeUserInfo")) else IO.unit
+    for {
+      // Step 1: 验证Token有效性
+      isValidToken <- VerifyTokenValidityMessage(studentToken).send
+      _ <- IO {
+        if (!isValidToken)
+          logger.error(s"学生Token验证失败: ${studentToken}无效")
+        else
+          logger.info(s"学生Token验证有效，继续解析学生信息")
+      }
   
-            result <- safeUserInfoOpt match {
-              case None => IO.pure(None)
-              case Some(safeUserInfo) =>
-                if (safeUserInfo.role != UserRole.Student) {
-                  IO {
-                    logger.info(
-                      s"[validateStudentToken] SafeUserInfo 角色不是学生：" +
-                        s"token=${studentToken}, userID=${safeUserInfo.userID}, role=${safeUserInfo.role}"
-                    )
-                  }.as(None)
-                } else {
-                  for {
-                    // Step 3: 记录日志
-                    _ <- IO(logger.info(s"[validateStudentToken] 开始记录验证日志"))
-                    operation <- IO("验证学生Token")
-                    currentTime <- IO(DateTime.now())
-                    logDetails <- IO(s"操作时间: ${currentTime}, studentToken: ${studentToken}")
-                    _ <- recordCourseEvaluationOperationLog(
-                      safeUserInfo.userID,
-                      operation,
-                      courseID = 0, // 此处未指定课程ID，传入0
-                      logDetails
-                    )
+      // Step 2: 根据Token获取学生信息
+      studentInfoOpt <- if (isValidToken) {
+        QuerySafeUserInfoByTokenMessage(studentToken).send
+      } else {
+        IO.pure(None)
+      }
   
-                    // Step 4: 返回学生 ID
-                    _ <- IO(logger.info(s"[validateStudentToken] 学生Token验证成功，返回学生ID: ${safeUserInfo.userID}"))
-                  } yield Some(safeUserInfo.userID)
-                }
-            }
-          } yield result
-        }
-      } yield result
-    }
+      // Step 3: 判断角色并获取学生ID
+      studentIDOpt = studentInfoOpt.flatMap { userInfo =>
+        // 修复逻辑：直接使用Option字段进行校验和获取
+        if (userInfo.role == UserRole.Student) Some(userInfo.userID) else None
+      }
+  
+      _ <- IO {
+        if (studentInfoOpt.isEmpty)
+          logger.error(s"未能根据Token获取学生信息: ${studentToken}")
+        else if (studentIDOpt.isEmpty)
+          logger.error(s"Token解析用户并非学生角色: ${studentToken}")
+        else
+          logger.info(s"学生Token验证通过，学生ID: ${studentIDOpt.get}")
+      }
+    } yield studentIDOpt
   }
 }
