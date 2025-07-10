@@ -115,7 +115,7 @@ case class DeleteCourseEvaluationMessagePlanner(
 
       // Step 6: Record operation log
       _ <- IO(logger.info("记录操作日志"))
-      operation <- IO("删除课程评价")
+      operation <- IO("删除评价")
       currentTime <- IO(DateTime.now())
       details <- IO(s"操作时间: ${currentTime}, 删除课程评价记录 evaluationID: ${evaluationID}")
       _ <- recordCourseEvaluationOperationLog(studentID, operation, courseID, details)
