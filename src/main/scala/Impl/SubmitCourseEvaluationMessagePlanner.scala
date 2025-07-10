@@ -123,7 +123,7 @@ case class SubmitCourseEvaluationMessagePlanner(
       _ <- IO(logger.info(s"[Step 7] 记录操作日志"))
       _ <- recordCourseEvaluationOperationLog(
         studentID = studentID,
-        operation = "SubmitEvaluation",
+        operation = "提交评价",
         courseID = courseID,
         details = s"Rating: ${rating}, Feedback: ${feedback}"
       )
