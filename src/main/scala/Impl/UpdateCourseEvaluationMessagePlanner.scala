@@ -70,8 +70,8 @@ case class UpdateCourseEvaluationMessagePlanner(
       permissions = semesterPhase.permissions
       _ <- IO(logger.info(s"[UpdateCourseEvaluation] 当前阶段的权限配置: ${permissions}"))
       _ <- if (!permissions.allowStudentEvaluate) {
-        IO(logger.info(s"[UpdateCourseEvaluation] 当前阶段不允许修改评价")) *> 
-        IO.raiseError(new IllegalStateException("当前阶段不允许修改评价。"))
+        IO(logger.info(s"[UpdateCourseEvaluation] 评价权限未开启！")) *> 
+        IO.raiseError(new IllegalStateException("评价权限未开启！"))
       } else IO.unit
 
       // Step 3: 确认学生是否曾评价该课程
