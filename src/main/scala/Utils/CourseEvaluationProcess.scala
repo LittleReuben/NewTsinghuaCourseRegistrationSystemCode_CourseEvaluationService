@@ -45,7 +45,7 @@ case object CourseEvaluationProcess {
           timestamp = timestamp,
           userID = studentID,
           action = operation,
-          details = s"[课程 ID: ${courseID}] ${details}"
+          details = s"[课程ID=${courseID}] ${details}"
         )
       }
       _ <- IO(logger.info(s"[recordCourseEvaluationOperationLog] 构造日志条目完成: ${logEntry}"))
