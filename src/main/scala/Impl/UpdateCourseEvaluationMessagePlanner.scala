@@ -93,7 +93,7 @@ case class UpdateCourseEvaluationMessagePlanner(
       // Step 5: 记录操作日志
       _ <- IO(logger.info(s"[UpdateCourseEvaluation] 记录操作日志"))
       logDetails = s"Rating: ${newRating}, Feedback: ${newFeedback}"
-      _ <- recordCourseEvaluationOperationLog(studentID, "UpdateCourseEvaluation", courseID, logDetails)
+      _ <- recordCourseEvaluationOperationLog(studentID, "更新评价", courseID, logDetails)
 
       // Step 6: 返回成功消息
       _ <- IO(logger.info(s"[UpdateCourseEvaluation] 更新成功"))
