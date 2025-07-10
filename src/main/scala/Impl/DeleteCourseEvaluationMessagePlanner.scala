@@ -68,7 +68,7 @@ case class DeleteCourseEvaluationMessagePlanner(
       allowDelete <- IO(semesterPhase.permissions.allowStudentEvaluate)
       _ <- IO(logger.info(s"允许学生评价课程: ${allowDelete}"))
       result <- if (!allowDelete) {
-        IO.raiseError(new IllegalArgumentException("评价权限未开启！"))
+        IO.raiseError(new IllegalStateException("评价权限未开启！"))
       } else {
         handleEvaluationDeletion(studentID)
       }
@@ -91,7 +91,7 @@ case class DeleteCourseEvaluationMessagePlanner(
       )
       result <- evaluationRecordOpt match {
         case None =>
-          IO.raiseError(new IllegalArgumentException("学生未曾评价该课程！"))
+          IO.raiseError(new IllegalStateException("学生未曾评价该课程！"))
         case Some(evaluationRecord) =>
           processEvaluationDeletion(studentID, evaluationRecord)
       }
