@@ -71,8 +71,8 @@ case class SubmitCourseEvaluationMessagePlanner(
       _ <- IO(logger.info(s"[Step 3] 检查阶段权限是否允许提交评价"))
       isEvaluationAllowed = semesterPhase.permissions.allowStudentEvaluate
       _ <- if (!isEvaluationAllowed) {
-        IO(logger.info(s"当前阶段不允许提交评价")) >>
-          IO.raiseError(new IllegalArgumentException("当前阶段不允许提交评价"))
+        IO(logger.info(s"评价权限未开启！")) >>
+          IO.raiseError(new IllegalArgumentException("评价权限未开启！"))
       } else IO.unit
 
       // Step 4: Validate student's eligibility for evaluation
